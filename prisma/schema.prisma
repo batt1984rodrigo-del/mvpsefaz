@@ -1,0 +1,538 @@
+// Prisma schema for TCRIA Decisions / Decision Intelligence Record MVP
+// Based on GitHub issue #1: MVP SaaS: transformar Decision Intelligence Record em produto
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OWNER
+  MEMBER
+  ADMIN
+}
+
+enum PlanType {
+  FREE
+  PRO
+  TEAM
+  ENTERPRISE
+}
+
+enum DecisionStatus {
+  DRAFT
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  ARCHIVED
+}
+
+enum DecisionMode {
+  DECISAO
+  DIAGNOSTICO
+  PLANEJAMENTO
+  AUDITORIA
+}
+
+enum DecisionOutcomeStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  DEFERRED
+}
+
+enum EvidenceType {
+  DOCUMENT
+  LINK
+  FILE
+  IMAGE
+  SPREADSHEET
+  EMAIL
+  CONTRACT
+  NOTE
+  OTHER
+}
+
+enum HypothesisStatus {
+  OPEN
+  TESTING
+  VALIDATED
+  INVALIDATED
+}
+
+enum ImpactLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ProbabilityLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum PriorityLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ExecutionStepStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  BLOCKED
+}
+
+enum AIContributionType {
+  SUMMARY
+  INFERENCE
+  RISK_SUGGESTION
+  PLAN_GENERATION
+  STRUCTURING
+  GAP_ANALYSIS
+  DIAGNOSIS
+  EXECUTIVE_SUMMARY
+}
+
+enum AuditAction {
+  CREATED
+  UPDATED
+  DELETED
+  ARCHIVED
+  AI_GENERATED
+  APPROVED
+  REJECTED
+  EXPORTED
+  ATTACHMENT_ADDED
+  STATUS_CHANGED
+  MEMBER_ADDED
+  MEMBER_REMOVED
+}
+
+enum ExportFormat {
+  JSON
+  MARKDOWN
+  PDF
+}
+
+model User {
+  id            String            @id @default(cuid())
+  email         String            @unique
+  name          String?
+  imageUrl      String?
+  externalAuthId String?          @unique
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  ownedWorkspaces Workspace[]     @relation("WorkspaceOwner")
+  memberships     WorkspaceMember[]
+  decisionRecords DecisionRecord[] @relation("DecisionRecordCreator")
+  auditEvents     AuditEvent[]     @relation("AuditActor")
+  aiContributions AIContribution[]
+  exports         DecisionExport[]
+
+  @@index([email])
+}
+
+model Workspace {
+  id          String            @id @default(cuid())
+  name        String
+  slug        String            @unique
+  plan        PlanType          @default(FREE)
+  ownerId     String
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  owner       User              @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members     WorkspaceMember[]
+  decisions   DecisionRecord[]
+  auditEvents AuditEvent[]
+
+  @@index([ownerId])
+  @@index([plan])
+}
+
+model WorkspaceMember {
+  id          String     @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        UserRole   @default(MEMBER)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+  @@index([workspaceId, role])
+}
+
+model DecisionRecord {
+  id                         String                @id @default(cuid())
+  workspaceId                String
+  title                      String
+  status                     DecisionStatus        @default(DRAFT)
+  mode                       DecisionMode          @default(DECISAO)
+  problem                    String?               @db.Text
+  objective                  String?               @db.Text
+  context                    String?               @db.Text
+  diagnosis                  String?               @db.Text
+  recommendationSummary      String?               @db.Text
+  recommendationRationale    String?               @db.Text
+  decisionStatus             DecisionOutcomeStatus @default(PENDING)
+  selectedAlternativeId      String?
+  decidedAt                  DateTime?
+  createdById                String
+  createdAt                  DateTime              @default(now())
+  updatedAt                  DateTime              @updatedAt
+  archivedAt                 DateTime?
+
+  workspace                  Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy                  User                  @relation("DecisionRecordCreator", fields: [createdById], references: [id])
+  selectedAlternative        Alternative?          @relation("SelectedAlternative", fields: [selectedAlternativeId], references: [id], onDelete: SetNull)
+
+  facts                      Fact[]
+  evidence                   Evidence[]
+  inferences                 Inference[]
+  hypotheses                 Hypothesis[]
+  alternatives               Alternative[]         @relation("DecisionAlternatives")
+  criteria                   Criterion[]
+  risks                      Risk[]
+  gaps                       Gap[]
+  executionSteps             ExecutionStep[]
+  aiContributions            AIContribution[]
+  auditEvents                AuditEvent[]
+  exports                    DecisionExport[]
+  tags                       DecisionTag[]
+  attachments                Attachment[]
+
+  @@index([workspaceId])
+  @@index([createdById])
+  @@index([status])
+  @@index([decisionStatus])
+  @@index([createdAt])
+}
+
+model Fact {
+  id               String          @id @default(cuid())
+  decisionRecordId String
+  description      String          @db.Text
+  confidence       Float           @default(1.0)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  decisionRecord   DecisionRecord  @relation(fields: [decisionRecordId], references: [id], onDelete: Cascade)
+  evidenceLinks    FactEvidence[]
+  inferenceLinks   InferenceFact[]
+
+  @@index([decisionRecordId])
+}
+
+model Evidence {
+  id               String          @id @default(cuid())
+  decisionRecordId String
+  type             EvidenceType    @default(DOCUMENT)
+  title            String
+  reference        String?
+  url              String?
+  filePath         String?
+  checksum         String?
+  verified         Boolean         @default(false)
+  metadata         Json?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  decisionRecord   DecisionRecord  @relation(fields: [decisionRecordId], references: [id], onDelete: Cascade)
+  factLinks        FactEvidence[]
+  hypothesisLinks  HypothesisEvidence[]
+
+  @@index([decisionRecordId])
+  @@index([type])
+  @@index([verified])
+}
+
+model FactEvidence {
+  factId     String
+  evidenceId String
+  createdAt  DateTime @default(now())
+
+  fact       Fact     @relation(fields: [factId], references: [id], onDelete: Cascade)
+  evidence   Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+
+  @@id([factId, evidenceId])
+  @@index([evidenceId])
+}
+
+model Inference {
+  id               String          @id @default(cuid())
+  decisionRecordId String
+  description      String          @db.Text
+  confidence       Float           @default(1.0)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  decisionRecord   DecisionRecord  @relation(fields: [decisionRecordId], references: [id], onDelete: Cascade)
+  basedOnFacts     InferenceFact[]
+
+  @@index([decisionRecordId])
+}
+
+model InferenceFact {
+  inferenceId String
+  factId      String
+  createdAt   DateTime  @default(now())
+
+  inference   Inference @relation(fields: [inferenceId], references: [id], onDelete: Cascade)
+  fact        Fact      @relation(fields: [factId], references: [id], onDelete: Cascade)
+
+  @@id([inferenceId, factId])
+  @@index([factId])
+}
+
+model Hypothesis {
+  id                String               @id @default(cuid())
+  decisionRecordId  String
+  statement         String               @db.Text
+  status            HypothesisStatus     @default(OPEN)
+  confidence        Float                @default(0.5)
+  validationMethod  String?              @db.Text
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  decisionRecord    DecisionRecord       @relation(fields: [decisionRecordId], references: [id], onDelete: Cascade)
+  evidenceLinks     HypothesisEvidence[]
+
+  @@index([decisionRecordId])
+  @@index([status])
+}
+
+model HypothesisEvidence {
+  hypothesisId String
+  evidenceId   String
+  createdAt    DateTime   @default(now())
+
+  hypothesis   Hypothesis @relation(fields: [hypothesisId], references: [id], onDelete: Cascade)
+  evidence     Evidence   @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+
+  @@id([hypothesisId, evidenceId])
+  @@index([evidenceId])
+}
+
+model Alternative {
+  id                  String            @id @default(cuid())
+  decisionRecordId    String
+  name                String
+  description         String?           @db.Text
+  pros                String[]          @default([])
+  cons                String[]          @default([])
+  risks               String[]          @default([])
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  decisionRecord      DecisionRecord    @relation("DecisionAlternatives", fields: [decisionRecordId], references: [id], onDelete: Cascade)
+  selectedByDecisions DecisionRecord[]   @relation("SelectedAlternative")
+  scores              CriterionScore[]
+
+  @@index([decisionRecordId])
+}
+
+model Criterion {
+  id               String           @id @default(cuid())
+  decisionRecordId String
+  name             String
+  weight           Float            @default(1.0)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  decisionRecord   DecisionRecord   @relation(fields: [decisionRecordId], references: [id], onDelete: Cascade)
+  scores           CriterionScore[]
+
+  @@index([decisionRecordId])
+}
+
+model CriterionScore {
+  id            String      @id @default(cuid())
+  criterionId   String
+  alternativeId String
+  score         Float
+  reason        String?     @db.Text
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  criterion     Criterion   @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+  alternative   Alternative @relation(fields: [alternativeId], references: [id], onDelete: Cascade)
+
+  @@unique([criterionId, alternativeId])
+  @@index([alternativeId])
+}
+
+model Risk {
+  id               String           @id @default(cuid())
+  decisionRecordId String
+  description      String           @db.Text
+  impact           ImpactLevel      @default(MEDIUM)
+  probability      ProbabilityLevel @default(MEDIUM)
+  mitigation       String?          @db.Text
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  decisionRecord   DecisionRecord   @relation(fields: [decisionRecordId], references: [id], onDelete: Cascade)
+
+  @@index([decisionRecordId])
+  @@index([impact])
+  @@index([probability])
+}
+
+model Gap {
+  id               String        @id @default(cuid())
+  decisionRecordId String
+  description      String        @db.Text
+  priority         PriorityLevel @default(MEDIUM)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  decisionRecord   DecisionRecord @relation(fields: [decisionRecordId], references: [id], onDelete: Cascade)
+
+  @@index([decisionRecordId])
+  @@index([priority])
+}
+
+model ExecutionStep {
+  id               String              @id @default(cuid())
+  decisionRecordId String
+  order            Int
+  action           String              @db.Text
+  owner            String?
+  deadline         DateTime?
+  status           ExecutionStepStatus @default(TODO)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  decisionRecord   DecisionRecord      @relation(fields: [decisionRecordId], references: [id], onDelete: Cascade)
+  dependencies     ExecutionStepDependency[] @relation("StepDependencies")
+  dependents       ExecutionStepDependency[] @relation("StepDependents")
+
+  @@index([decisionRecordId])
+  @@index([status])
+  @@index([deadline])
+  @@unique([decisionRecordId, order])
+}
+
+model ExecutionStepDependency {
+  stepId       String
+  dependsOnId  String
+  createdAt    DateTime      @default(now())
+
+  step         ExecutionStep @relation("StepDependencies", fields: [stepId], references: [id], onDelete: Cascade)
+  dependsOn    ExecutionStep @relation("StepDependents", fields: [dependsOnId], references: [id], onDelete: Cascade)
+
+  @@id([stepId, dependsOnId])
+  @@index([dependsOnId])
+}
+
+model AIContribution {
+  id               String             @id @default(cuid())
+  decisionRecordId String
+  userId           String?
+  section          String
+  type             AIContributionType
+  model            String
+  promptVersion    String?
+  input            Json?
+  output           Json?
+  createdAt        DateTime           @default(now())
+
+  decisionRecord   DecisionRecord     @relation(fields: [decisionRecordId], references: [id], onDelete: Cascade)
+  user             User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([decisionRecordId])
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model AuditEvent {
+  id               String          @id @default(cuid())
+  workspaceId      String
+  decisionRecordId String?
+  action           AuditAction
+  actorId          String?
+  notes            String?         @db.Text
+  metadata         Json?
+  createdAt        DateTime        @default(now())
+
+  workspace        Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  decisionRecord   DecisionRecord? @relation(fields: [decisionRecordId], references: [id], onDelete: Cascade)
+  actor            User?           @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([decisionRecordId])
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model DecisionExport {
+  id               String        @id @default(cuid())
+  decisionRecordId String
+  userId           String?
+  format           ExportFormat
+  filePath         String?
+  metadata         Json?
+  createdAt        DateTime      @default(now())
+
+  decisionRecord   DecisionRecord @relation(fields: [decisionRecordId], references: [id], onDelete: Cascade)
+  user             User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([decisionRecordId])
+  @@index([userId])
+  @@index([format])
+  @@index([createdAt])
+}
+
+model Tag {
+  id        String        @id @default(cuid())
+  name      String        @unique
+  createdAt DateTime      @default(now())
+
+  decisions DecisionTag[]
+}
+
+model DecisionTag {
+  decisionRecordId String
+  tagId            String
+  createdAt        DateTime       @default(now())
+
+  decisionRecord   DecisionRecord @relation(fields: [decisionRecordId], references: [id], onDelete: Cascade)
+  tag              Tag            @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([decisionRecordId, tagId])
+  @@index([tagId])
+}
+
+model Attachment {
+  id               String         @id @default(cuid())
+  decisionRecordId String
+  name             String
+  url              String?
+  filePath         String?
+  mimeType         String?
+  size             Int?
+  checksum         String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  decisionRecord   DecisionRecord @relation(fields: [decisionRecordId], references: [id], onDelete: Cascade)
+
+  @@index([decisionRecordId])
+  @@index([mimeType])
+}
