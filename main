@@ -1,0 +1,175 @@
+{
+  "id": "uuid",
+  "version": 1,
+  "status": "DRAFT",
+  "timestamp": "2026-05-11T14:30:00Z",
+
+  "mode": "DECISAO",
+
+  "context": {
+    "title": "string",
+    "problem": "string",
+    "objective": "string",
+
+    "facts": [
+      {
+        "id": "fact-1",
+        "description": "string",
+        "source": "string",
+        "confidence": 0.95,
+        "createdAt": "2026-05-11T14:30:00Z"
+      }
+    ],
+
+    "inferences": [
+      {
+        "id": "inf-1",
+        "description": "string",
+        "basedOn": ["fact-1"],
+        "confidence": 0.8
+      }
+    ],
+
+    "hypotheses": [
+      {
+        "id": "hyp-1",
+        "description": "string",
+        "validated": false,
+        "validationNotes": "string"
+      }
+    ],
+
+    "criteria": [
+      {
+        "id": "criteria-1",
+        "name": "Custo",
+        "weight": 0.8,
+        "description": "Impacto financeiro total"
+      }
+    ],
+
+    "diagnosis": {
+      "summary": "string",
+      "confidence": 0.82
+    },
+
+    "alternatives": [
+      {
+        "id": "alt-1",
+        "name": "string",
+        "pros": ["string"],
+        "cons": ["string"],
+        "risks": ["string"],
+        "score": 7.8
+      }
+    ],
+
+    "recommendation": {
+      "selectedAlternativeId": "alt-1",
+      "summary": "string",
+      "rationale": "string",
+      "confidence": 0.86
+    },
+
+    "executionPlan": {
+      "steps": [
+        {
+          "id": "step-1",
+          "order": 1,
+          "action": "string",
+          "owner": "string",
+          "status": "PENDING",
+          "deadline": "2026-05-20T18:00:00Z"
+        }
+      ]
+    },
+
+    "risks": [
+      {
+        "id": "risk-1",
+        "description": "string",
+        "impact": "HIGH",
+        "probability": "MEDIUM",
+        "mitigation": "string"
+      }
+    ],
+
+    "evidence": [
+      {
+        "id": "evidence-1",
+        "type": "document",
+        "reference": "string",
+        "url": "string"
+      }
+    ],
+
+    "gaps": [
+      {
+        "id": "gap-1",
+        "description": "string",
+        "priority": "MEDIUM"
+      }
+    ],
+
+    "nextSteps": [
+      {
+        "id": "next-1",
+        "description": "string",
+        "owner": "string",
+        "deadline": "2026-05-15T12:00:00Z"
+      }
+    ],
+
+    "recordsToPreserve": [
+      {
+        "id": "record-1",
+        "type": "contract",
+        "reference": "string",
+        "retentionPolicy": "5_YEARS"
+      }
+    ]
+  },
+
+  "responsibles": [
+    {
+      "id": "user-123",
+      "name": "string",
+      "role": "DECISION_OWNER"
+    }
+  ],
+
+  "authorship": {
+    "user": "string",
+    "aiOrganized": true,
+    "aiGeneratedSections": [
+      "diagnosis",
+      "executionPlan"
+    ],
+    "reviewedByHuman": true
+  },
+
+  "auditTrail": [
+    {
+      "id": "audit-1",
+      "action": "CREATED",
+      "user": "string",
+      "timestamp": "2026-05-11T14:35:00Z",
+      "notes": "string"
+    }
+  ],
+
+  "tags": [
+    "finance",
+    "mvp",
+    "legal"
+  ],
+
+  "attachments": [
+    {
+      "id": "attachment-1",
+      "name": "contract.pdf",
+      "url": "string",
+      "mimeType": "application/pdf"
+    }
+  ]
+}
